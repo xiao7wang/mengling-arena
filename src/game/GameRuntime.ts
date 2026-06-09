@@ -1,18 +1,36 @@
 import { getItem, items } from '../data/items';
-import { maps, pickEncounter } from '../data/maps';
-import { clonePetForPlayer, petSpecies, getPetSpecies } from '../data/pets';
-import { createBattleState, performBattleTurn, type BattleState } from '../systems/battleSystem';
-import { attemptCapture } from '../systems/captureSystem';
+import { maps } from '../data/maps';
+import {
+  clonePetForPlayer,
+  getPetSpecies,
+  petSpecies,
+  pickRandomPetSpecies,
+  starterSpecies
+} from '../data/pets';
+import {
+  addStatusEffect,
+  createBattleState,
+  performBasicAttackTurn,
+  performEnemyCounterTurn,
+  performPlayerSkillTurn,
+  type BattleState
+} from '../systems/battleSystem';
 import { consumeItem } from '../systems/inventorySystem';
 import { feedPet, gainExperience, healPet, trainPet } from '../systems/growthSystem';
-import { clearSave, loadGame, saveGame } from '../systems/saveSystem';
+import { clearSave, chooseStarter, loadGame, saveGame } from '../systems/saveSystem';
+import { attemptTame } from '../systems/tameSystem';
 import type { PetInstance, SaveState } from '../types';
 
 export class GameRuntime {
   save: SaveState = loadGame();
   selectedMapId = maps[0].id;
+  selectedTameItemId = 'spirit-stone';
   currentBattle?: BattleState;
   recentMessage = '欢迎来到萌灵竞技场。';
+
+  get needsStarterSelection(): boolean {
+    return !this.save.hasChosenStarter || this.save.pets.length === 0;
+  }
 
   get activePet(): PetInstance {
     const active = this.save.pets.find((pet) => pet.id === this.save.activePetId);
@@ -20,12 +38,19 @@ export class GameRuntime {
       return active;
     }
     const fallback = this.save.pets[0];
+    if (!fallback) {
+      throw new Error('Starter has not been selected yet.');
+    }
     this.save.activePetId = fallback.id;
     return fallback;
   }
 
   get allSpecies() {
     return petSpecies;
+  }
+
+  get starterOptions() {
+    return starterSpecies;
   }
 
   get itemDefinitions() {
@@ -36,11 +61,23 @@ export class GameRuntime {
     return maps;
   }
 
+  get tameItems() {
+    return items.filter((item) => item.category === 'tame');
+  }
+
   newGame(): void {
     this.save = clearSave();
     this.currentBattle = undefined;
     this.selectedMapId = maps[0].id;
-    this.recentMessage = '新的训练记录已经开始。';
+    this.selectedTameItemId = 'spirit-stone';
+    this.recentMessage = '新的记录已经开始，请选择你的初始萌灵。';
+    this.persist();
+  }
+
+  chooseStarter(speciesId: string): void {
+    this.save = chooseStarter(this.save, speciesId);
+    this.currentBattle = undefined;
+    this.recentMessage = `${this.activePet.nickname} 与你建立了第一份共鸣。`;
     this.persist();
   }
 
@@ -60,15 +97,17 @@ export class GameRuntime {
     this.persist();
   }
 
-  replacePet(updatedPet: PetInstance): void {
-    this.save = {
-      ...this.save,
-      pets: this.save.pets.map((pet) => (pet.id === updatedPet.id ? updatedPet : pet))
-    };
-    this.persist();
+  setSelectedTameItem(itemId: string): void {
+    if (!this.tameItems.some((item) => item.id === itemId)) {
+      return;
+    }
+    this.selectedTameItemId = itemId;
   }
 
-  feedActivePet(itemId = 'berry-cake'): void {
+  feedActivePet(itemId = 'meling-snack'): void {
+    if (this.needsStarterSelection) {
+      return;
+    }
     const item = getItem(itemId);
     const consumed = consumeItem(this.save.inventory, itemId);
     if (!consumed.ok || !item.intimacyGain) {
@@ -86,6 +125,9 @@ export class GameRuntime {
   }
 
   trainActivePet(itemId = 'focus-card'): void {
+    if (this.needsStarterSelection) {
+      return;
+    }
     const item = getItem(itemId);
     const consumed = consumeItem(this.save.inventory, itemId);
     if (!consumed.ok || !item.trainingExp) {
@@ -107,6 +149,9 @@ export class GameRuntime {
   }
 
   healActivePet(itemId = 'dew-tonic'): void {
+    if (this.needsStarterSelection) {
+      return;
+    }
     const item = getItem(itemId);
     const consumed = consumeItem(this.save.inventory, itemId);
     if (!consumed.ok || !item.healAmount) {
@@ -124,29 +169,117 @@ export class GameRuntime {
   }
 
   startEncounter(mapId = this.selectedMapId): void {
+    if (this.needsStarterSelection) {
+      this.recentMessage = '请先选择初始萌灵。';
+      return;
+    }
     this.selectedMapId = mapId;
-    const encounter = pickEncounter(mapId);
-    const wildPet = clonePetForPlayer(encounter.speciesId, encounter.level);
-    this.currentBattle = createBattleState(this.activePet, wildPet);
+    const species = pickRandomPetSpecies();
+    const level = 2 + Math.floor(Math.random() * 5);
+    const untamedPet = clonePetForPlayer(species.id, level);
+    this.currentBattle = createBattleState(this.activePet, untamedPet);
     this.save = {
       ...this.save,
       visitedMaps: Array.from(new Set([...this.save.visitedMaps, mapId])),
-      discoveredSpecies: Array.from(new Set([...this.save.discoveredSpecies, wildPet.speciesId]))
+      discoveredSpecies: Array.from(new Set([...this.save.discoveredSpecies, untamedPet.speciesId]))
     };
-    this.recentMessage = `在 ${maps.find((map) => map.id === mapId)?.name ?? '野外'} 遇到了 ${
-      wildPet.nickname
+    this.recentMessage = `在 ${maps.find((map) => map.id === mapId)?.name ?? '探索区域'} 遇到了未驯服萌灵 ${
+      untamedPet.nickname
     }。`;
     this.persist();
   }
 
-  performPlayerSkill(skillId: string): void {
+  performBasicAttack(): void {
     if (!this.currentBattle || this.currentBattle.status !== 'active') {
       return;
     }
-    const enemySkillId = this.currentBattle.enemy.skillIds[0];
-    const result = performBattleTurn(this.currentBattle, skillId, enemySkillId);
-    this.currentBattle = result;
+    this.applyBattleResult(performBasicAttackTurn(this.currentBattle));
+  }
 
+  performPlayerSkill(skillId?: string): void {
+    if (!this.currentBattle || this.currentBattle.status !== 'active') {
+      return;
+    }
+    this.applyBattleResult(
+      performPlayerSkillTurn(this.currentBattle, skillId ?? this.currentBattle.player.skillIds[0])
+    );
+  }
+
+  sootheUntamed(): void {
+    if (!this.currentBattle || this.currentBattle.status !== 'active') {
+      return;
+    }
+    const itemId = 'soothe-bell';
+    const item = getItem(itemId);
+    const consumed = consumeItem(this.save.inventory, itemId);
+    if (!consumed.ok) {
+      this.recentMessage = `${item.name} 道具不足，无法安抚。`;
+      this.currentBattle = {
+        ...this.currentBattle,
+        log: [...this.currentBattle.log, this.recentMessage]
+      };
+      return;
+    }
+
+    const enemy = addStatusEffect(this.currentBattle.enemy, 'affinity');
+    this.save = {
+      ...this.save,
+      inventory: consumed.inventory
+    };
+    const soothedBattle = {
+      ...this.currentBattle,
+      enemy,
+      log: [...this.currentBattle.log, `${item.name} 发出轻响，${enemy.nickname} 进入亲和状态。`]
+    };
+    this.applyBattleResult(performEnemyCounterTurn(soothedBattle, `${enemy.nickname} 仍保持警觉。`));
+  }
+
+  tryTame(itemId = this.selectedTameItemId): void {
+    if (!this.currentBattle || this.currentBattle.status !== 'active') {
+      return;
+    }
+    const result = attemptTame(this.save, this.currentBattle.enemy, itemId);
+    this.save = result.state;
+    this.recentMessage = result.message;
+
+    if (!result.consumedItem) {
+      this.currentBattle = {
+        ...this.currentBattle,
+        enemy: result.untamedPet,
+        log: [...this.currentBattle.log, result.message]
+      };
+      return;
+    }
+
+    if (result.success) {
+      this.currentBattle = undefined;
+      this.persist();
+      return;
+    }
+
+    const failedBattle = {
+      ...this.currentBattle,
+      enemy: result.untamedPet,
+      log: [...this.currentBattle.log, result.message]
+    };
+    this.applyBattleResult(performEnemyCounterTurn(failedBattle, `${result.untamedPet.nickname} 立刻反击。`));
+  }
+
+  runAway(): void {
+    if (!this.currentBattle) {
+      return;
+    }
+    this.recentMessage = '你带着萌灵撤离了探索区域。';
+    this.currentBattle = undefined;
+    this.persist();
+  }
+
+  getActiveSpeciesName(): string {
+    return getPetSpecies(this.activePet.speciesId).name;
+  }
+
+  private applyBattleResult(result: BattleState): void {
+    this.currentBattle = result;
     let activePet = result.player;
     const updates: Partial<SaveState> = {
       discoveredSpecies: Array.from(
@@ -164,9 +297,9 @@ export class GameRuntime {
         log: [...result.log, `${activePet.nickname} 获得 ${exp} 经验和 ${coins} 星币。`]
       };
       updates.coins = this.save.coins + coins;
-      this.recentMessage = `胜利！获得 ${coins} 星币。`;
+      this.recentMessage = `战斗结束，获得 ${coins} 星币。`;
     } else if (result.status === 'lost') {
-      activePet = { ...result.player, currentHp: 1 };
+      activePet = { ...result.player, currentHp: 1, hp: 1 };
       this.currentBattle = {
         ...result,
         player: activePet,
@@ -183,27 +316,6 @@ export class GameRuntime {
       pets: this.save.pets.map((pet) => (pet.id === activePet.id ? activePet : pet))
     };
     this.persist();
-  }
-
-  tryCapture(itemId: string): void {
-    if (!this.currentBattle || this.currentBattle.status !== 'active') {
-      return;
-    }
-    const result = attemptCapture(this.save, this.currentBattle.enemy, itemId);
-    this.save = result.state;
-    this.currentBattle = {
-      ...this.currentBattle,
-      log: [...this.currentBattle.log, result.message]
-    };
-    this.recentMessage = result.message;
-    if (result.success) {
-      this.currentBattle = undefined;
-    }
-    this.persist();
-  }
-
-  getActiveSpeciesName(): string {
-    return getPetSpecies(this.activePet.speciesId).name;
   }
 }
 

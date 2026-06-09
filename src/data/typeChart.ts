@@ -2,7 +2,7 @@ import type { ElementType } from '../types';
 
 export const elementLabels: Record<ElementType, string> = {
   nature: '森',
-  water: '泉',
+  water: '澜',
   spark: '雷',
   flame: '焰',
   stone: '岩',

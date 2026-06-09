@@ -10,6 +10,10 @@ export class MapScene extends Phaser.Scene {
   }
 
   create(): void {
+    if (runtime.needsStarterSelection) {
+      this.scene.start('MainMenuScene');
+      return;
+    }
     this.render();
   }
 

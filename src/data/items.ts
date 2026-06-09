@@ -2,20 +2,39 @@ import type { ItemDefinition } from '../types';
 
 export const items: ItemDefinition[] = [
   {
-    id: 'basic-orb',
-    name: '朴素灵球',
-    description: '基础捕捉道具，对低血量野生萌灵更有效。',
-    category: 'capture',
+    id: 'soothe-bell',
+    name: '安抚铃',
+    description: '轻响能稳定未驯服萌灵的情绪，驯服成功率小幅提升。',
+    category: 'tame',
     price: 80,
-    captureModifier: 1
+    tameBonus: 0.1,
+    appliesStatus: 'affinity'
   },
   {
-    id: 'gleam-orb',
-    name: '微光灵球',
-    description: '带有柔和光纹的捕捉道具，捕捉率更高。',
-    category: 'capture',
+    id: 'meling-snack',
+    name: '萌灵点心',
+    description: '带来亲和气息的小点心，会让目标进入亲和状态。',
+    category: 'tame',
+    price: 120,
+    tameBonus: 0.15,
+    appliesStatus: 'affinity',
+    intimacyGain: 12
+  },
+  {
+    id: 'spirit-stone',
+    name: '灵契石',
+    description: '用于建立稳定共鸣契约的石片。',
+    category: 'tame',
     price: 180,
-    captureModifier: 1.45
+    tameBonus: 0.25
+  },
+  {
+    id: 'resonance-mark',
+    name: '共鸣印记',
+    description: '稀有驯服道具，能显著提升契约回应。',
+    category: 'tame',
+    price: 360,
+    tameBonus: 0.35
   },
   {
     id: 'berry-cake',

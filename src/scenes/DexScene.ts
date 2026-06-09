@@ -10,6 +10,10 @@ export class DexScene extends Phaser.Scene {
   }
 
   create(): void {
+    if (runtime.needsStarterSelection) {
+      this.scene.start('MainMenuScene');
+      return;
+    }
     drawSoftBackground(this, 0x29395a);
     const width = this.scale.width;
     const height = this.scale.height;

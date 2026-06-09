@@ -30,7 +30,8 @@ export function gainExperience(pet: PetInstance, amount: number): PetInstance {
     ...stats,
     level,
     experience,
-    currentHp: leveledUp ? stats.maxHp : Math.min(pet.currentHp, stats.maxHp)
+    currentHp: leveledUp ? stats.maxHp : Math.min(pet.currentHp, stats.maxHp),
+    hp: leveledUp ? stats.maxHp : Math.min(pet.currentHp, stats.maxHp)
   };
 }
 
@@ -39,8 +40,10 @@ export function trainPet(pet: PetInstance, experienceGain: number): PetInstance 
 }
 
 export function healPet(pet: PetInstance, amount: number): PetInstance {
+  const currentHp = clamp(pet.currentHp + amount, 0, pet.maxHp);
   return {
     ...pet,
-    currentHp: clamp(pet.currentHp + amount, 0, pet.maxHp)
+    currentHp,
+    hp: currentHp
   };
 }

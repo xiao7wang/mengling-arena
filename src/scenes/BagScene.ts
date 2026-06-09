@@ -9,6 +9,10 @@ export class BagScene extends Phaser.Scene {
   }
 
   create(): void {
+    if (runtime.needsStarterSelection) {
+      this.scene.start('MainMenuScene');
+      return;
+    }
     this.render();
   }
 

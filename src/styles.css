@@ -109,7 +109,7 @@ button:disabled {
 
 .menu-actions,
 .action-grid,
-.capture-row {
+.tame-row {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -118,6 +118,40 @@ button:disabled {
 .menu-actions {
   margin-top: 28px;
   justify-content: center;
+}
+
+.starter-screen {
+  align-items: center;
+  justify-content: center;
+}
+
+.starter-panel {
+  width: min(940px, calc(100vw - 32px));
+}
+
+.starter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.starter-card {
+  min-height: 210px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  text-align: left;
+}
+
+.starter-card strong {
+  font-size: 20px;
+}
+
+.starter-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .top-nav {
@@ -236,7 +270,8 @@ button:disabled {
 }
 
 .pet-row.active,
-.map-row.active {
+.map-row.active,
+.tame-row button.active {
   border-color: rgba(113, 225, 173, 0.72);
   background: rgba(113, 225, 173, 0.18);
 }
@@ -258,6 +293,22 @@ button:disabled {
 
 .battle-log li {
   margin-bottom: 6px;
+}
+
+.status-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 14px;
+}
+
+.status-list span {
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(255, 211, 111, 0.14);
+  color: #ffe2a1;
+  border: 1px solid rgba(255, 211, 111, 0.28);
+  font-size: 13px;
 }
 
 .dex-grid,
@@ -339,6 +390,7 @@ button:disabled {
 
   .dex-grid,
   .item-grid,
+  .starter-grid,
   .stats {
     grid-template-columns: 1fr;
   }

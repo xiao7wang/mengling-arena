@@ -3,35 +3,39 @@ import type { SkillDefinition } from '../types';
 export const skills: SkillDefinition[] = [
   {
     id: 'leaf-dart',
-    name: '叶影飞针',
+    name: '藤叶缠绕',
     type: 'nature',
     power: 18,
     accuracy: 0.95,
-    description: '凝出细叶飞针攻击，适合压制泉系对手。'
+    description: '用柔韧藤叶束住目标，可能造成寒缚。',
+    statusEffect: 'frostbind'
   },
   {
     id: 'water-pop',
-    name: '泡泡冲击',
+    name: '泡沫缓流',
     type: 'water',
     power: 16,
     accuracy: 0.98,
-    description: '用弹跳水泡撞击目标，命中稳定。'
+    description: '用沉缓水泡包裹目标，可能造成寒缚。',
+    statusEffect: 'frostbind'
   },
   {
     id: 'spark-bite',
-    name: '电光咬',
+    name: '眩星电闪',
     type: 'spark',
     power: 20,
     accuracy: 0.9,
-    description: '带着电火花突进撕咬。'
+    description: '释放星点般的电光，可能造成眩星。',
+    statusEffect: 'daze'
   },
   {
     id: 'ember-hop',
-    name: '火星跃击',
+    name: '灼痕跃击',
     type: 'flame',
     power: 19,
     accuracy: 0.92,
-    description: '借小火星起跳，落地时造成焰系伤害。'
+    description: '借小火星起跳，落地时可能留下灼痕。',
+    statusEffect: 'scorch'
   },
   {
     id: 'pebble-guard',
@@ -48,6 +52,15 @@ export const skills: SkillDefinition[] = [
     power: 15,
     accuracy: 1,
     description: '释放一圈轻风，威力较低但不易落空。'
+  },
+  {
+    id: 'mire-mist',
+    name: '蚀雾轻触',
+    type: 'nature',
+    power: 14,
+    accuracy: 0.9,
+    description: '散开带有微弱蚀性的雾，可能造成毒蚀。',
+    statusEffect: 'corrosion'
   }
 ];
 

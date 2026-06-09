@@ -15,7 +15,7 @@ export const maps: MapDefinition[] = [
   {
     id: 'shimmer-brook',
     name: '微光溪岸',
-    description: '溪水边闪着细碎光点，泉系萌灵经常在这里玩耍。',
+    description: '溪水边闪着细碎光点，澜系萌灵经常在这里玩耍。',
     color: 0x4aa7c8,
     encounters: [
       { speciesId: 'glowdrop', weight: 50, minLevel: 2, maxLevel: 5 },

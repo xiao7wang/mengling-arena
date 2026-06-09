@@ -1,6 +1,15 @@
 export type ElementType = 'nature' | 'water' | 'spark' | 'flame' | 'stone' | 'wind';
 
-export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic';
+export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+export type StatusEffectId =
+  | 'corrosion'
+  | 'frostbind'
+  | 'scorch'
+  | 'daze'
+  | 'fatigue'
+  | 'fear'
+  | 'affinity';
 
 export type SceneKey = 'menu' | 'home' | 'map' | 'battle' | 'dex' | 'bag';
 
@@ -15,11 +24,16 @@ export interface PetSpecies {
   id: string;
   name: string;
   description: string;
+  role?: string;
+  element: ElementType;
   type: ElementType;
   rarity: Rarity;
   color: number;
   baseStats: Stats;
   growth: Stats;
+  baseTameRate: number;
+  starter?: boolean;
+  skills: string[];
   skillIds: string[];
 }
 
@@ -27,13 +41,18 @@ export interface PetInstance extends Stats {
   id: string;
   speciesId: string;
   nickname: string;
+  element: ElementType;
   type: ElementType;
   rarity: Rarity;
   color: number;
   level: number;
   experience: number;
   intimacy: number;
+  hp: number;
   currentHp: number;
+  baseTameRate: number;
+  statusEffects: StatusEffectId[];
+  skills: string[];
   skillIds: string[];
 }
 
@@ -44,15 +63,17 @@ export interface SkillDefinition {
   power: number;
   accuracy: number;
   description: string;
+  statusEffect?: StatusEffectId;
 }
 
 export interface ItemDefinition {
   id: string;
   name: string;
   description: string;
-  category: 'capture' | 'food' | 'training' | 'healing';
+  category: 'tame' | 'food' | 'training' | 'healing';
   price: number;
-  captureModifier?: number;
+  tameBonus?: number;
+  appliesStatus?: StatusEffectId;
   intimacyGain?: number;
   trainingExp?: number;
   healAmount?: number;
@@ -81,5 +102,6 @@ export interface SaveState {
   inventory: Inventory;
   discoveredSpecies: string[];
   visitedMaps: string[];
+  hasChosenStarter: boolean;
   lastSavedAt: string;
 }

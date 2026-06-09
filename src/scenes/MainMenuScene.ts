@@ -35,12 +35,34 @@ export class MainMenuScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
+    const renderStarterSelection = () => {
+      this.ui.renderStarterSelection(runtime.starterOptions, {
+        choose: (speciesId) => {
+          runtime.chooseStarter(speciesId);
+          this.scene.start('HomeScene');
+        },
+        clearSave: () => {
+          runtime.newGame();
+          renderStarterSelection();
+        }
+      });
+    };
+
+    if (runtime.needsStarterSelection) {
+      renderStarterSelection();
+      return;
+    }
+
     this.ui.renderMenu({
       start: () => {
         runtime.newGame();
-        this.scene.start('HomeScene');
+        renderStarterSelection();
       },
-      continueGame: () => this.scene.start('HomeScene')
+      continueGame: () => this.scene.start(runtime.needsStarterSelection ? 'MainMenuScene' : 'HomeScene'),
+      clearSave: () => {
+        runtime.newGame();
+        renderStarterSelection();
+      }
     });
   }
 }

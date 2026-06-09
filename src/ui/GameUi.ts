@@ -1,8 +1,10 @@
 import { elementLabels } from '../data/typeChart';
 import { getExperienceToNextLevel } from '../data/pets';
 import { getSkill } from '../data/skills';
+import { statusLabels } from '../systems/battleSystem';
+import { getTameChance } from '../systems/tameSystem';
 import type { GameRuntime } from '../game/GameRuntime';
-import type { ItemDefinition, PetInstance } from '../types';
+import type { ItemDefinition, PetInstance, PetSpecies } from '../types';
 
 type NavTarget = 'home' | 'map' | 'battle' | 'dex' | 'bag' | 'menu';
 
@@ -17,7 +19,7 @@ export class GameUi {
     this.root.innerHTML = '';
   }
 
-  renderMenu(options: { start: () => void; continueGame: () => void }): void {
+  renderMenu(options: { start: () => void; continueGame: () => void; clearSave: () => void }): void {
     this.set(`
       <section class="screen menu-screen">
         <div class="brand">
@@ -28,20 +30,70 @@ export class GameUi {
         <div class="menu-actions">
           <button data-action="continue">继续冒险</button>
           <button data-action="start">新的记录</button>
+          <button data-action="clear">清除存档 / 重新开始</button>
         </div>
       </section>
     `);
     this.bind('continue', options.continueGame);
     this.bind('start', options.start);
+    this.bind('clear', options.clearSave);
+  }
+
+  renderStarterSelection(
+    starters: PetSpecies[],
+    options: { choose: (speciesId: string) => void; clearSave: () => void }
+  ): void {
+    this.set(`
+      <section class="screen starter-screen">
+        <aside class="panel wide-panel starter-panel">
+          <p class="eyebrow">初始共鸣</p>
+          <h2>选择你的第一只萌灵</h2>
+          <div class="starter-grid">
+            ${starters
+              .map(
+                (species) => `
+                <button class="starter-card" data-starter="${species.id}">
+                  <span class="dex-dot" style="--pet-color: #${species.color
+                    .toString(16)
+                    .padStart(6, '0')}"></span>
+                  <strong>${species.name}</strong>
+                  <small>${elementLabels[species.element]}属性 · ${species.role ?? '伙伴型'}</small>
+                  <p>${species.description}</p>
+                </button>`
+              )
+              .join('')}
+          </div>
+          <button data-action="clear">清除存档 / 重新开始</button>
+        </aside>
+      </section>
+    `);
+    this.root.querySelectorAll<HTMLButtonElement>('[data-starter]').forEach((button) => {
+      button.addEventListener('click', () => options.choose(button.dataset.starter ?? starters[0].id));
+    });
+    this.bind('clear', options.clearSave);
   }
 
   renderHome(runtime: GameRuntime, nav: NavCallbacks, refresh: () => void): void {
+    if (runtime.needsStarterSelection) {
+      this.renderStarterSelection(runtime.starterOptions, {
+        choose: (speciesId) => {
+          runtime.chooseStarter(speciesId);
+          refresh();
+        },
+        clearSave: () => {
+          runtime.newGame();
+          refresh();
+        }
+      });
+      return;
+    }
+
     const active = runtime.activePet;
     this.set(`
       ${this.nav('home')}
       <section class="screen two-column">
         <aside class="panel">
-          <p class="eyebrow">宠物家园</p>
+          <p class="eyebrow">萌灵家园</p>
           <h2>${active.nickname}</h2>
           ${this.petStats(active)}
           <p class="message">${runtime.recentMessage}</p>
@@ -58,7 +110,7 @@ export class GameUi {
               (pet) => `
               <button class="pet-row ${pet.id === active.id ? 'active' : ''}" data-pet="${pet.id}">
                 <span>${pet.nickname}</span>
-                <span>Lv.${pet.level} · ${elementLabels[pet.type]}</span>
+                <span>Lv.${pet.level} · ${elementLabels[pet.element]}</span>
               </button>`
             )
             .join('')}
@@ -130,7 +182,11 @@ export class GameUi {
           <aside class="panel">
             <p class="eyebrow">回合制战斗</p>
             <h2>没有正在进行的战斗</h2>
-            <button data-nav="map">返回地图</button>
+            <p class="message">${runtime.recentMessage}</p>
+            <div class="action-grid">
+              <button data-nav="home">返回家园</button>
+              <button data-nav="map">继续探索</button>
+            </div>
           </aside>
         </section>
       `);
@@ -140,25 +196,36 @@ export class GameUi {
 
     const active = battle.player;
     const enemy = battle.enemy;
-    const usableCaptureItems = runtime.itemDefinitions.filter(
-      (item) => item.category === 'capture' && (runtime.save.inventory[item.id] ?? 0) > 0
-    );
+    const selectedItem = runtime.tameItems.find((item) => item.id === runtime.selectedTameItemId);
+    const tameChance = selectedItem ? getTameChance(enemy, selectedItem.id).chance : 0;
     this.set(`
       ${this.nav('battle')}
       <section class="screen battle-ui">
         <aside class="panel command-panel">
-          <p class="eyebrow">我方</p>
+          <p class="eyebrow">我方萌灵</p>
           <h2>${active.nickname}</h2>
           ${this.petStats(active)}
-          ${this.battleCommands(runtime, active, usableCaptureItems)}
+          <p class="eyebrow">契约道具</p>
+          <div class="tame-row">
+            ${runtime.tameItems
+              .map(
+                (item) =>
+                  `<button class="${
+                    item.id === runtime.selectedTameItemId ? 'active' : ''
+                  }" data-tame-item="${item.id}">${item.name} x${runtime.save.inventory[item.id] ?? 0}</button>`
+              )
+              .join('')}
+          </div>
+          <p class="message">当前驯服成功率：${Math.round(tameChance * 100)}%</p>
+          ${this.battleCommands(runtime, active)}
         </aside>
         <aside class="panel log-panel">
-          <p class="eyebrow">战斗日志</p>
+          <p class="eyebrow">未驯服萌灵</p>
           <h2>${enemy.nickname}</h2>
           ${this.petStats(enemy)}
           <ol class="battle-log">
             ${battle.log
-              .slice(-8)
+              .slice(-9)
               .map((line) => `<li>${line}</li>`)
               .join('')}
           </ol>
@@ -166,18 +233,32 @@ export class GameUi {
       </section>
     `);
     this.bindNav(nav);
-    if (battle.status === 'active') {
-      this.root.querySelectorAll<HTMLButtonElement>('[data-skill]').forEach((button) => {
-        button.addEventListener('click', () => {
-          runtime.performPlayerSkill(button.dataset.skill ?? active.skillIds[0]);
-          refresh();
-        });
+    this.root.querySelectorAll<HTMLButtonElement>('[data-tame-item]').forEach((button) => {
+      button.addEventListener('click', () => {
+        runtime.setSelectedTameItem(button.dataset.tameItem ?? runtime.selectedTameItemId);
+        refresh();
       });
-      this.root.querySelectorAll<HTMLButtonElement>('[data-capture]').forEach((button) => {
-        button.addEventListener('click', () => {
-          runtime.tryCapture(button.dataset.capture ?? 'basic-orb');
-          refresh();
-        });
+    });
+    if (battle.status === 'active') {
+      this.bind('basic-attack', () => {
+        runtime.performBasicAttack();
+        refresh();
+      });
+      this.bind('skill-attack', () => {
+        runtime.performPlayerSkill(active.skillIds[0]);
+        refresh();
+      });
+      this.bind('soothe', () => {
+        runtime.sootheUntamed();
+        refresh();
+      });
+      this.bind('tame', () => {
+        runtime.tryTame();
+        refresh();
+      });
+      this.bind('flee', () => {
+        runtime.runAway();
+        refresh();
       });
     }
   }
@@ -187,7 +268,7 @@ export class GameUi {
       ${this.nav('dex')}
       <section class="screen dex-screen">
         <aside class="panel wide-panel">
-          <p class="eyebrow">宠物图鉴</p>
+          <p class="eyebrow">萌灵图鉴</p>
           <h2>${runtime.save.discoveredSpecies.length}/${runtime.allSpecies.length} 已发现</h2>
           <div class="dex-grid">
             ${runtime.allSpecies
@@ -200,7 +281,7 @@ export class GameUi {
                     .padStart(6, '0')}"></span>
                   <h3>${discovered ? species.name : '未知萌灵'}</h3>
                   <p>${discovered ? species.description : '继续探索地图，发现新的伙伴。'}</p>
-                  <small>${discovered ? `${elementLabels[species.type]} · ${species.rarity}` : '???'}</small>
+                  <small>${discovered ? `${elementLabels[species.element]} · ${species.rarity}` : '???'}</small>
                 </article>`;
               })
               .join('')}
@@ -222,12 +303,13 @@ export class GameUi {
           <div class="item-grid">
             ${runtime.itemDefinitions.map((item) => this.itemEntry(item, runtime)).join('')}
           </div>
+          <button data-action="restart">清除存档 / 重新开始</button>
         </aside>
       </section>
     `);
     this.bindNav(nav);
-    this.bind('use-berry-cake', () => {
-      runtime.feedActivePet('berry-cake');
+    this.bind('use-meling-snack', () => {
+      runtime.feedActivePet('meling-snack');
       refresh();
     });
     this.bind('use-focus-card', () => {
@@ -238,11 +320,15 @@ export class GameUi {
       runtime.healActivePet('dew-tonic');
       refresh();
     });
+    this.bind('restart', () => {
+      runtime.newGame();
+      nav.go('menu');
+    });
   }
 
   private itemEntry(item: ItemDefinition, runtime: GameRuntime): string {
     const count = runtime.save.inventory[item.id] ?? 0;
-    const canUse = ['berry-cake', 'focus-card', 'dew-tonic'].includes(item.id);
+    const canUse = ['meling-snack', 'focus-card', 'dew-tonic'].includes(item.id);
     return `
       <article class="item-entry">
         <span>${item.name}</span>
@@ -253,30 +339,18 @@ export class GameUi {
     `;
   }
 
-  private battleCommands(
-    runtime: GameRuntime,
-    active: PetInstance,
-    usableCaptureItems: ItemDefinition[]
-  ): string {
+  private battleCommands(runtime: GameRuntime, active: PetInstance): string {
     if (runtime.currentBattle?.status !== 'active') {
-      return '<button class="primary" data-nav="map">返回地图</button>';
+      return '<button class="primary" data-nav="map">继续探索</button>';
     }
+    const skill = getSkill(active.skillIds[0]);
     return `
       <div class="action-grid">
-        ${active.skillIds
-          .map((skillId) => {
-            const skill = getSkill(skillId);
-            return `<button data-skill="${skill.id}">${skill.name}</button>`;
-          })
-          .join('')}
-      </div>
-      <div class="capture-row">
-        ${usableCaptureItems
-          .map(
-            (item) =>
-              `<button data-capture="${item.id}">${item.name} x${runtime.save.inventory[item.id]}</button>`
-          )
-          .join('')}
+        <button data-action="basic-attack">普通攻击</button>
+        <button data-action="skill-attack">技能攻击：${skill.name}</button>
+        <button data-action="soothe">安抚</button>
+        <button data-action="tame">尝试驯服</button>
+        <button data-action="flee">逃跑</button>
       </div>
     `;
   }
@@ -284,7 +358,7 @@ export class GameUi {
   private petStats(pet: PetInstance): string {
     return `
       <dl class="stats">
-        <div><dt>属性</dt><dd>${elementLabels[pet.type]}</dd></div>
+        <div><dt>属性</dt><dd>${elementLabels[pet.element]}</dd></div>
         <div><dt>等级</dt><dd>${pet.level}</dd></div>
         <div><dt>经验</dt><dd>${pet.experience}/${getExperienceToNextLevel(pet.level)}</dd></div>
         <div><dt>亲密</dt><dd>${pet.intimacy}</dd></div>
@@ -293,6 +367,13 @@ export class GameUi {
         <div><dt>防御</dt><dd>${pet.defense}</dd></div>
         <div><dt>速度</dt><dd>${pet.speed}</dd></div>
       </dl>
+      <div class="status-list">
+        ${
+          pet.statusEffects.length
+            ? pet.statusEffects.map((status) => `<span>${statusLabels[status]}</span>`).join('')
+            : '<span>状态稳定</span>'
+        }
+      </div>
     `;
   }
 
